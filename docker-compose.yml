@@ -1,0 +1,78 @@
+version: "3.9"
+
+services:
+  projectname.db:
+    image: mysql:8.0.26
+    container_name: projectname.db
+    hostname: projectname.db
+    restart: unless-stopped
+    command:
+      [
+        "mysqld",
+        "--character-set-server=utf8mb4",
+        "--collation-server=utf8mb4_unicode_ci",
+      ]
+    environment:
+      MYSQL_DATABASE: projectname
+      MYSQL_USER: projectname
+      MYSQL_PASSWORD: unsecurePassword
+      MYSQL_ROOT_USER: root
+      MYSQL_ROOT_PASSWORD: unsecureRootPassword
+    healthcheck:
+      test: mysqlshow $${MYSQL_DATABASE} -u$${MYSQL_USER} -p$${MYSQL_PASSWORD}
+    volumes:
+      - projectname_db_data:/var/lib/mysql
+    ports:
+      - 3307:3306
+
+  projectname.backend:
+    container_name: projectname.backend
+    hostname: projectname.backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - 8086:8086
+    expose:
+      - "8086"
+    volumes:
+      - "./backend:/usr/src/app"
+      - "./frontend/src/shared:/usr/src/app/src/shared"
+    links:
+      - projectname.db:database
+    depends_on:
+      projectname.db:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=development
+      - DB_NAME=projectname
+      - DB_USER=projectname
+      - DB_PASSWORD=unsecurePassword
+      - DB_HOST=database
+      - DB_PORT=3307
+      - DB_LOGGING=true
+      - SERVER_PORT=8086
+      - LOG_LEVEL=debug
+
+  projectname.frontend:
+    container_name: projectname.frontend
+    hostname: projectname.frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    volumes:
+      - "./frontend:/usr/src/app"
+    links:
+      - projectname.backend:backend
+    environment:
+      - NODE_ENV=development
+      - LOG_LEVEL=debug
+
+volumes:
+  projectname_db_data:
